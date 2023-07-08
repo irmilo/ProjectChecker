@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project`s checker</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.11/dist/vue.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <h1>Project's Checker</h1>
+        
+        <div class="input-container">
+            <input v-model="projectname" placeholder="Project name" @keyup.enter="checkAvailability">
+            <input v-model="shopid" placeholder="Shop id (не обязательно)" @keyup.enter="checkAvailability">
+            <button class="button" @click="checkAvailability">Check</button>
+        </div> 
+        <div v-if="loading" class="loader"></div>
+        <div v-if="errorMessage" class="error-message">
+            {{ errorMessage }}
+        </div>             
+        <div v-for="(response, label) in orderedResponses" :key="label">
+            <div class="response-header">
+                <button class="response-button" @click="toggleResponse(label)">{{ label }}</button>
+                <button class="copy-button" @click="copyResponse(response)">Copy</button>
+            </div>
+            <pre v-if="expandedResponse === label" class="response-content">{{ JSON.stringify(response, null, 2) }}</pre>
+        </div>
+    </div>
+
+    <script>
+        const app = new Vue({
+            el: '#app',
+            data: {
+                projectname: '',
+                shopid: '',
+                responses: {},
+                expandedResponse: '',
+                errorMessage: '',
+                loading: false,
+                buttonOrder: [
+                            'Types',
+                            'Payment types',
+                            'Shops',
+                            'Categories',
+                            //'Meals',
+                            'Pagemeta',
+                            //'Settings',
+                            'Header web',
+                            'Header app',
+                            'General settings',
+                            'FAQ',
+                            'Banners',
+                            'Info pages',
+                            'Frontend',
+                            'Frontend locales',
+                            //'Loyalty',
+                            //'App',
+                            //'Meals'
+                        ]
+            },
+            
+            methods: {
+                checkAvailability() {
+                    this.loading = true;
+                    if (!this.projectname) {
+                        this.errorMessage = 'Ошибка: Не указано название проекта.';
+                        this.loading = false;
+                        return;
+                    }
+
+                    if (this.containsCyrillicCharacters(this.projectname)) {
+                        this.errorMessage = 'Ошибка: Неверно указано название проекта.';
+                        this.loading = false;
+                        return;
+                    }
+
+                    const labels = {
+                                    [`https://api.starterapp.ru/${this.projectname}/delivery/types`]: 'Delivery types',
+                                    [`https://api.starterapp.ru/${this.projectname}/payment/types`]: 'Payment types',
+                                    [`https://api.starterapp.ru/${this.projectname}/delivery/shops`]: 'Shops',
+                                    [`https://api.starterapp.ru/${this.projectname}/categories/${this.shopid}/v2`]: 'Categories',
+                                    //[`https://api.starterapp.ru/${this.projectname}/meals/${this.shopid}/v2`]: 'Meals',
+                                    [`https://api.starterapp.ru/${this.projectname}/pagemeta`]: 'Pagemeta',
+                                    //[`https://api.starterapp.ru/${this.projectname}/settings`]: 'Settings',
+                                    [`https://api.starterapp.ru/${this.projectname}/settings/headerWeb`]: 'Header web',
+                                    [`https://api.starterapp.ru/${this.projectname}/settings/headerApp`]: 'Header app',
+                                    [`https://api.starterapp.ru/${this.projectname}/references/settings`]: 'General settings',
+                                    [`https://api.starterapp.ru/${this.projectname}/references/faq`]: 'FAQ',
+                                    [`https://api.starterapp.ru/${this.projectname}/references/banners`]: 'Banners',
+                                    [`https://static.content.starterapp.co/api/${this.projectname}/info_pages`]: 'Info pages',
+                                    [`https://settings.api.starterapp.co/${this.projectname}/frontend`]: 'Frontend',
+                                    [`https://settings.api.starterapp.co/${this.projectname}/frontend/locales`]: 'Frontend locales',
+                                    //[`https://settings.api.starterapp.co/${this.projectname}/loyalty`]: 'Loyalty',
+                                    //[`https://settings.api.starterapp.co/${this.projectname}/app`]: 'App',
+                                    //[`https://api.starterapp.ru/${this.projectname}/meals/update`]: 'Meals'
+                                };
+
+
+                    fetch(`/api/check?projectname=${this.projectname}&shopid=${this.shopid}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            const transformedResponses = {};
+                            for (const [url, response] of Object.entries(data)) {
+                                const label = labels[url] || url;
+                                transformedResponses[label] = response;
+                            }
+                            this.responses = transformedResponses;
+                            this.errorMessage = '';
+                            this.loading = false;
+                        })
+                        .catch(error => {
+                            console.error(error);
+                            this.errorMessage = 'Ошибка при выполнении запроса.';
+                            this.loading = false;
+                        });
+                },
+                containsCyrillicCharacters(string) {
+                    const cyrillicPattern = /[\u0400-\u04FF]/;
+                    return cyrillicPattern.test(string);
+                },
+                toggleResponse(label) {
+                    if (this.expandedResponse === label) {
+                        this.expandedResponse = '';
+                    } else {
+                        this.expandedResponse = label;
+                    }
+                },
+                formatLabel(label) {
+                    return label.charAt(0).toUpperCase() + label.slice(1);
+                },
+                copyResponse(response) {
+                    const responseString = JSON.stringify(response, null, 2);
+                    navigator.clipboard.writeText(responseString)
+                        .then(() => {
+                            alert('Результат скопирован в буфер обмена');
+                        })
+                        .catch(error => {
+                            console.error('не удалось скопировать результат в буфер обмена:', error);
+                        });
+                }               
+            },
+            computed: {
+                        orderedResponses() {
+                            const orderedResponses = {};
+                            for (const buttonLabel of this.buttonOrder) {
+                                const response = this.responses[buttonLabel];
+                                if (response) {
+                                    orderedResponses[buttonLabel] = response;
+                                }
+                            }
+                            return orderedResponses;
+                        }
+                    }
+        });
+    </script>
+</body>
+</html>
